@@ -1,0 +1,17 @@
+{
+  "_comment": "复制为 checkin.config.json 后按需修改；所有字段都有默认值，可以只保留需要覆盖的项",
+  "timezone": "Asia/Shanghai",
+  "checkTimes": ["10:05"],
+  "clientMissing": "skip",
+  "allowTokenRefresh": false,
+  "requestTimeoutMs": 12000,
+  "verifyDelayMs": 2500,
+  "profiles": ["workbuddy-cn", "workbuddy-ai"],
+  "retry": { "maxAttempts": 3, "baseDelayMs": 2000, "maxDelayMs": 60000 },
+  "scanLegacyBackup": false,
+  "verbose": true,
+  "workBuddyExe": {
+    "workbuddy-cn": "C:/Users/<你>/AppData/Local/Programs/WorkBuddy/WorkBuddy.exe",
+    "workbuddy-ai": "C:/Users/<你>/AppData/Local/Programs/WorkBuddyAI/WorkBuddyAI.exe"
+  }
+}

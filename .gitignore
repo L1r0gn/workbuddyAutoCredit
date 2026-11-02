@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/
+*.log
+*.jsonl
+checkin.config.json
+.env
+.DS_Store
+.workbuddy/
