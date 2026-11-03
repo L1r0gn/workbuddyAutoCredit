@@ -8,6 +8,7 @@
  *   npm run checkin:dry-run   模拟签到（不调用领取接口）
  *   npm run checkin:daemon    启动后台定时服务
  */
+import * as path from 'node:path';
 import { currentAccounts, describeAccount, findAccounts } from './account-manager';
 import { createRuntime, confirmIdentity, type Runtime } from './index';
 import { loadConfig } from './config';
@@ -248,8 +249,32 @@ async function commandRun(runtime: Runtime, args: ParsedArgs, options: { all?: b
   return exitCodeFor(result);
 }
 
+
+/** 检测统一调度器是否在运行（避免两套调度同一天各跑一轮）。 */
+function unifiedDaemonRunning(dataDir: string): number | null {
+  return readLivePid(path.join(dataDir, 'unified-daemon.pid'));
+}
+
+/** 读取 pid 文件并判断进程是否存活。 */
+function readLivePid(file: string): number | null {
+  try {
+    const fs2 = require('node:fs') as typeof import('node:fs');
+    const pid = Number(fs2.readFileSync(file, 'utf8').trim());
+    if (!Number.isSafeInteger(pid) || pid <= 0) return null;
+    process.kill(pid, 0);
+    return pid;
+  } catch {
+    return null;
+  }
+}
+
 async function commandDaemon(runtime: Runtime, args: ParsedArgs): Promise<number> {
   const pidFile = new PidFile(runtime.config.dataDir);
+  const unified = unifiedDaemonRunning(runtime.config.dataDir);
+  if (unified) {
+    console.error(`统一定时服务正在运行（pid ${unified}），它已包含 WorkBuddy 任务；请先停止它再单独启动本 daemon。`);
+    return 3;
+  }
   const existing = pidFile.existing();
   if (existing) {
     console.error(`已有定时服务在运行（pid ${existing}），如需重启请先停止该进程。`);

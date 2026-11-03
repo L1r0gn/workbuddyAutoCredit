@@ -1,0 +1,20 @@
+{
+  "_comment": "复制为 qoder.config.json 后按需修改；所有字段都有默认值。真实令牌不要写在这里，用 .env 或 qoder:accounts add。",
+  "timezone": "Asia/Shanghai",
+  "checkTimes": ["10:05"],
+  "regions": ["cn", "global"],
+  "requestTimeoutMs": 20000,
+  "verifyDelayMs": 2000,
+  "retry": { "maxAttempts": 3, "baseDelayMs": 2000, "maxDelayMs": 60000 },
+  "windowRetry": { "enabled": true, "max": 6, "gapMs": 600000 },
+  "allowUmidDownload": false,
+  "verbose": true,
+  "clientExe": {
+    "cn": "C:/Qoder CN/Qoder CN.exe",
+    "global": "C:/Qoder/Qoder.exe"
+  },
+  "umidPath": {
+    "cn": "C:/Qoder CN/resources/umid/runtime-info.exe",
+    "global": "C:/Qoder/resources/umid/runtime-info.exe"
+  }
+}

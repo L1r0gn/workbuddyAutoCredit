@@ -3,7 +3,21 @@ dist/
 data/
 *.log
 *.jsonl
-checkin.config.json
 .env
+.env.*
+!.env.example
+
+# 本机配置（含路径 / 端口等机器相关项）
+checkin.config.json
+qoder.config.json
+
+# 凭据与运行状态（正常情况下应在 %APPDATA%，这里兜底防误提交）
+qoder-state.json
+qoder_tokens.json
+workbuddy-tokens.json
+state.json
+*.secret
+*.token
+
 .DS_Store
 .workbuddy/

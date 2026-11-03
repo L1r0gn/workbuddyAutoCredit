@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 780" width="1040" height="780" font-family="'Segoe UI','Microsoft YaHei',sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#6B8199"/>
+    </marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#7FB08A"/>
+    </marker>
+    <style>
+      .t { fill:#E6EDF3; font-size:12.5px; }
+      .tb { fill:#E6EDF3; font-size:14px; font-weight:600; }
+      .tm { fill:#96A7B8; font-size:11px; }
+      .mono { font-family:'Cascadia Code','Consolas',monospace; }
+      .ln { stroke:#6B8199; stroke-width:1.4; fill:none; }
+      .lng { stroke:#7FB08A; stroke-width:1.3; fill:none; stroke-dasharray:4 4; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1040" height="780" fill="#0B1220"/>
+  <text x="40" y="40" font-size="20" font-weight="700" fill="#E6EDF3">统一入口：一个指令跑完三个签到任务</text>
+  <text x="40" y="62" class="tm">平台模块保持独立；统一层只负责触发、隔离、汇总</text>
+
+  <!-- 用户 -->
+  <rect x="350" y="84" width="340" height="44" rx="8" fill="#1E2430" stroke="#4A5568"/>
+  <text x="366" y="112" class="tb mono">npm run signin</text>
+  <text x="520" y="112" class="tm">（用户唯一需要的指令）</text>
+
+  <path class="ln" d="M 520 128 L 520 150" marker-end="url(#a)"/>
+
+  <!-- 编排层 -->
+  <rect x="30" y="150" width="980" height="118" rx="10" fill="#101C2B" stroke="#2B5F8F"/>
+  <text x="46" y="172" class="tb" fill="#7FA8D8">unified/ · 编排层（不认识平台内部逻辑）</text>
+
+  <rect x="46" y="182" width="270" height="70" rx="8" fill="#12233A" stroke="#2B5F8F"/>
+  <text x="60" y="204" class="t mono">cli.ts</text>
+  <text x="60" y="222" class="tm">run / status / daemon</text>
+  <text x="60" y="239" class="tm">--platform · --dry-run · --json</text>
+
+  <rect x="386" y="182" width="270" height="70" rx="8" fill="#12233A" stroke="#2B5F8F"/>
+  <text x="400" y="204" class="t mono">scheduler.ts</text>
+  <text x="400" y="222" class="tm">北京时间 10:05 触发</text>
+  <text x="400" y="239" class="tm">启动补偿 · 全完成则跳过</text>
+
+  <rect x="726" y="182" width="268" height="70" rx="8" fill="#16304F" stroke="#3D7FB8"/>
+  <text x="740" y="204" class="tb mono">runner.ts</text>
+  <text x="740" y="222" class="tm">串行执行 · 单平台超时/异常隔离</text>
+  <text x="740" y="239" class="tm">汇总结果与退出码</text>
+
+  <path class="ln" d="M 316 217 L 386 217" marker-end="url(#a)"/>
+  <path class="ln" d="M 656 217 L 726 217" marker-end="url(#a)"/>
+
+  <!-- 扇出到三个适配器 -->
+  <path class="ln" d="M 860 252 L 860 276 L 185 276 L 185 300" marker-end="url(#a)"/>
+  <path class="ln" d="M 520 276 L 520 300" marker-end="url(#a)"/>
+  <path class="ln" d="M 860 276 L 860 300" marker-end="url(#a)"/>
+
+  <!-- 适配器行 -->
+  <rect x="30" y="300" width="310" height="52" rx="8" fill="#12233A" stroke="#34506B"/>
+  <text x="44" y="322" class="t">WorkBuddy 适配器</text>
+  <text x="44" y="339" class="tm">doneToday / hasAccounts → 归一化结果</text>
+
+  <rect x="355" y="300" width="310" height="52" rx="8" fill="#12233A" stroke="#34506B"/>
+  <text x="369" y="322" class="t">Qoder CN 适配器</text>
+  <text x="369" y="339" class="tm">只看 region=cn 的账号</text>
+
+  <rect x="680" y="300" width="310" height="52" rx="8" fill="#12233A" stroke="#34506B"/>
+  <text x="694" y="322" class="t">Qoder 国际版适配器</text>
+  <text x="694" y="339" class="tm">只看 region=global 的账号</text>
+
+  <path class="ln" d="M 185 352 L 185 386" marker-end="url(#a)"/>
+  <path class="ln" d="M 510 352 L 510 386" marker-end="url(#a)"/>
+  <path class="ln" d="M 835 352 L 835 386" marker-end="url(#a)"/>
+
+  <!-- 平台模块 -->
+  <rect x="30" y="386" width="310" height="124" rx="8" fill="#16241B" stroke="#3E7A52"/>
+  <text x="44" y="408" class="tb">checkin/ · WorkBuddy</text>
+  <text x="44" y="428" class="tm">Scheduler.runOnce</text>
+  <text x="44" y="445" class="tm">checkin-service（幂等三层）</text>
+  <text x="44" y="462" class="tm">credit-api ← auth-manager</text>
+  <text x="44" y="479" class="tm">CDP 诊断 · 多域名兜底</text>
+  <text x="44" y="498" class="tm">store: state.json</text>
+
+  <rect x="355" y="386" width="310" height="124" rx="8" fill="#16241B" stroke="#3E7A52"/>
+  <text x="369" y="408" class="tb">qoder/ · region=cn</text>
+  <text x="369" y="428" class="tm">QoderScheduler.runOnce</text>
+  <text x="369" y="445" class="tm">service（活动领取闭环）</text>
+  <text x="369" y="462" class="tm">api + campaign + auth</text>
+  <text x="369" y="479" class="tm">device（UMID env=0）</text>
+  <text x="369" y="498" class="tm">store: qoder-state.json（0600）</text>
+
+  <rect x="680" y="386" width="310" height="124" rx="8" fill="#16241B" stroke="#3E7A52"/>
+  <text x="694" y="408" class="tb">qoder/ · region=global</text>
+  <text x="694" y="428" class="tm">同一份代码，按 region 派生</text>
+  <text x="694" y="445" class="tm">域名：openapi.qoder.sh</text>
+  <text x="694" y="462" class="tm">device（UMID env=3）</text>
+  <text x="694" y="479" class="tm">凭据 / 身份与 CN 完全隔离</text>
+  <text x="694" y="498" class="tm">同表不同区，键带 region 前缀</text>
+
+  <!-- 官方接口 -->
+  <path class="ln" d="M 185 510 L 185 546" marker-end="url(#a)"/>
+  <path class="ln" d="M 510 510 L 510 546" marker-end="url(#a)"/>
+  <path class="ln" d="M 835 510 L 835 546" marker-end="url(#a)"/>
+
+  <rect x="30" y="546" width="310" height="82" rx="8" fill="#22182C" stroke="#7A4A8F"/>
+  <text x="44" y="568" class="t">WorkBuddy 官方接口</text>
+  <text x="44" y="586" class="tm mono">POST /billing/meter/daily-checkin</text>
+  <text x="44" y="603" class="tm mono">POST /v2/billing/meter/get-user-resource</text>
+  <text x="44" y="620" class="tm">域名随令牌签发域，白名单约束</text>
+
+  <rect x="355" y="546" width="310" height="82" rx="8" fill="#22182C" stroke="#7A4A8F"/>
+  <text x="369" y="568" class="t">Qoder CN 官方接口</text>
+  <text x="369" y="586" class="tm mono">GET /sash/api/v1/me/campaigns</text>
+  <text x="369" y="603" class="tm mono">POST …/campaigns/{id}/claim</text>
+  <text x="369" y="620" class="tm mono">openapi.qoder.com.cn</text>
+
+  <rect x="680" y="546" width="310" height="82" rx="8" fill="#22182C" stroke="#7A4A8F"/>
+  <text x="694" y="568" class="t">Qoder 国际版官方接口</text>
+  <text x="694" y="586" class="tm mono">GET /sash/api/v1/me/campaigns</text>
+  <text x="694" y="603" class="tm mono">POST …/campaigns/{id}/claim</text>
+  <text x="694" y="620" class="tm mono">openapi.qoder.sh</text>
+
+  <!-- 共享基础设施 -->
+  <rect x="30" y="664" width="960" height="86" rx="8" fill="#1E1B14" stroke="#8F7A3E"/>
+  <text x="46" y="686" class="tb">共享基础设施（三个平台共用，编排层不重复实现）</text>
+  <text x="46" y="706" class="tm">logger（脱敏 + JSONL） · client（超时 / 有限重试 / 不跟随重定向） · nextSlotAt（Asia/Shanghai） · 数据目录 %APPDATA%\workbuddy-auto-checkin</text>
+  <text x="46" y="726" class="tm">互斥保护：unified-daemon.pid ↔ daemon.pid / qoder-daemon.pid，两套调度不会同时运行；同一天重复执行由各平台幂等层拦截</text>
+
+  <path class="lng" d="M 22 448 L 22 700 L 30 700" marker-end="url(#ag)"/>
+</svg>

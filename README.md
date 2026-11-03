@@ -1,16 +1,22 @@
-# WorkBuddy 每日积分自动签到
+# 每日积分自动签到（WorkBuddy + Qoder / Qoder CN）
 
-独立实现的 WorkBuddy（国内版 / AI 国际版）每日积分自动签到模块。
-**直接复用官方客户端的登录态**，通过官方积分接口完成"查询 → 领取 → 验证 → 缓存"的完整闭环。
+两个平台的独立实现，共用一套日志、配置、存储与调度基础设施：
+
+| 平台 | 机制 | 凭据来源 | 说明 |
+|---|---|---|---|
+| **WorkBuddy**（国内版 / AI 国际版） | 固定签到接口 | 本机官方客户端登录态（AES-256-GCM 信封） | [docs/01-analysis.md](docs/01-analysis.md) |
+| **Qoder CN / Qoder**（国内版 / 国际版） | 活动（campaign）领取 | 设备码授权登录（PKCE）或环境变量令牌 | [docs/02-qoder.md](docs/02-qoder.md) |
+| **统一入口** | 编排上述三个任务 | 复用各平台凭据 | [docs/03-unified.md](docs/03-unified.md) |
 
 - 不改官方客户端安装文件，不注入 UI，不上传任何凭据
-- 多账号静默签到（各自用自己的 token，不切换客户端）
-- 默认北京时间每天 10:05 检查，已领取则不发任何请求
-- 完整的自动化测试（68 个用例）与机器可读的运行日志
+- 多账号独立执行，单个账号失败不影响其它账号
+- 默认北京时间每天 10:05 检查，已完成则不发任何请求
+- 完整的自动化测试（180 个用例）与机器可读的运行日志
 
-> 技术来源说明：接口地址、判定规则、加密信封格式均通过对参考项目
-> [WorkDaddy](https://github.com/babygoton/WorkDaddy) 源码的逐行阅读获得，并在本机真实账号上核对过。
-> 详见 [docs/01-analysis.md](docs/01-analysis.md)。代码为独立重写，未复制参考项目源码。
+> 技术来源：接口地址、判定规则、加密信封/设备身份协议，全部来自对参考项目
+> [WorkDaddy](https://github.com/babygoton/WorkDaddy) 与 [Qoder-Daily](https://github.com/L0NE-6/Qoder-Daily)
+> 源码的逐行阅读，并尽量在本机核对。代码为独立重写，未复制参考项目源码。
+> 无法确认的部分在各自文档的「待验证」小节明确标注。
 
 ---
 
@@ -44,20 +50,79 @@ checkin/
 ├── logger.ts           脱敏日志
 ├── config.ts           路径、profile、配置加载
 └── types.ts            类型定义
+
+qoder/                  Qoder CN / Qoder 国际版（结构与 checkin/ 平行，复用其日志/客户端/时区工具）
+├── cli.ts              login / accounts / status / run / all / dry-run / refresh / daemon
+├── index.ts            运行时装配
+├── scheduler.ts        每日调度 + 启动补偿 + pid 文件
+├── service.ts          签到闭环、幂等、额度回读验证
+├── api.ts              活动列表 / 领取 / 额度接口与结果判定
+├── campaign.ts         每日活动识别、Pro 排除、窗口判定
+├── auth.ts             设备码登录（PKCE）与令牌续期
+├── device.ts           官方 UMID 组件调用与设备身份缓存
+├── accounts.ts         环境变量导入、账号筛选
+├── store.ts            账号 / 令牌 / 记录（原子写 0600）
+├── config.ts           区域常量、组件定位、版本读取
+└── types.ts            类型定义
+
+unified/                统一入口（新增）：只做触发、隔离、汇总，不含任何平台逻辑
+├── cli.ts              一条命令跑三个平台：run / status / dry-run / daemon
+├── scheduler.ts        北京时间 10:05 触发 + 启动补偿 + 单实例互斥
+├── runner.ts           串行执行、单平台超时与异常隔离、汇总
+├── platforms.ts        三个适配器（唯一与平台耦合的地方）
+└── types.ts            PlatformAdapter / PlatformOutcome 契约
+
 scripts/key-probe.cjs   在客户端运行时内派生解密密钥（只读）
-test/                   自动化测试
+test/                   自动化测试（180 个用例）
 ```
 
 ---
 
 ## 2. 快速开始
 
-要求：**Node.js ≥ 20**（推荐 22），已安装并登录 WorkBuddy 客户端。
+要求：**Node.js ≥ 20**（推荐 22）。
+
+### 2.1 一条命令跑完三个平台（推荐）
 
 ```bash
-npm install        # 只装 typescript 与 @types/node
+npm install
 npm run build
 
+npm run qoder:login -- --region cn       # 首次：Qoder 账号授权一次（有账号可跳过）
+npm run qoder:login -- --region global   # 可选：国际版账号
+
+npm run signin:status     # 三个平台总览（只读）
+npm run signin            # 一次性执行全部签到
+npm run signin:daemon     # 每天 10:05 自动执行
+```
+
+输出示例：
+
+```
+══ 全部签到结果（2026-11-03）══
+
+[1/3] WorkBuddy（国内版 + AI 国际版）
+  ✅ 完成｜账号 1｜新领取 1，不可用 1（未登录或未安装对应客户端）｜3.9s
+     · 9b09****0e  checked-in  100
+
+[2/3] Qoder CN 国内版
+  ⏭  今日已全部完成，跳过（120ms，无网络请求）
+
+[3/3] Qoder 国际版
+  ○  没有 Qoder 国际版 账号
+
+汇总：平台 3（完成 1｜部分 1｜失败 0｜跳过 1｜无账号 1｜异常 0）
+```
+
+常用参数：`--platform workbuddy|qoder-cn|qoder-global|qoder`、`--dry-run`、`--force`、`--json`。
+结构、触发逻辑与调用关系见 [docs/03-unified.md](docs/03-unified.md)；
+架构图见 [docs/architecture-unified.svg](docs/architecture-unified.svg)。
+
+> 三个平台模块互相独立；统一入口只是外面的一层编排。想单独跑某个平台，继续用下面的命令。
+
+### 2.2 WorkBuddy 单平台命令
+
+```bash
 # 1) 先看状态（只读：账号、凭据有效性、今日签到、积分）
 npm run checkin:status
 
@@ -84,6 +149,17 @@ WORKBUDDY_EXE="F:/WorkBuddy/WorkBuddy.exe" npm run checkin:status
 ```
 
 ### 命令一览
+
+统一入口（覆盖三个平台）：
+
+| 命令 | 作用 | 是否改变服务端状态 |
+|---|---|---|
+| `npm run signin` | **一次性执行 WorkBuddy + Qoder CN + Qoder 国际版** | **是**（各平台幂等） |
+| `npm run signin:status` | 三个平台总览（账号数、今日状态、最近结果） | 否 |
+| `npm run signin:dry-run` | 三个平台全部模拟，不领取 | 否 |
+| `npm run signin:daemon` | 统一定时服务（每天 10:05） | 到点才会 |
+
+单平台命令（WorkBuddy）：
 
 | 命令 | 作用 | 是否改变服务端状态 |
 |---|---|---|
@@ -210,7 +286,9 @@ INFO 账号 9b09****0e 今日已确认签到，跳过所有请求
 ### 方式 A：常驻终端
 
 ```bash
-npm run checkin:daemon
+npm run signin:daemon     # 推荐：一套调度覆盖三个平台
+npm run checkin:daemon    # 只跑 WorkBuddy（与统一调度互斥，只会有一套在跑）
+npm run qoder:daemon      # 只跑 Qoder 两个区域
 ```
 
 启动后会写 `daemon.pid`，重复启动会被拒绝（返回码 3）。`Ctrl+C` 优雅退出。
@@ -242,7 +320,138 @@ Register-ScheduledTask -TaskName "WorkBuddyAutoCheckin" -Action $action -Trigger
 
 ---
 
-## 6. 安全设计
+## 6. Qoder（CN 国内版 / 国际版）
+
+Qoder 的「签到」实际是**活动领取**：拉活动列表 → 找可领取的每日活动 → 调用领取接口。
+与 WorkBuddy 最大的差别是**必须带官方设备风控身份（UMID）**，否则活动根本不下发。
+完整技术细节见 [docs/02-qoder.md](docs/02-qoder.md)。
+
+### 6.1 授权登录（一次即可）
+
+```bash
+npm run qoder:login -- --region cn       # 国内版 Qoder CN
+npm run qoder:login -- --region global   # 国际版 Qoder
+```
+
+命令会**先打印授权链接**，再尝试唤起默认浏览器；用目标账号确认后，程序轮询到令牌并保存到本机（0600）。
+**不需要密码、验证码或 MFA**，也不需要每天重新登录（令牌会自动续期并落盘）。
+
+```
+开始 Qoder CN 国内版 设备授权登录（浏览器里确认一次即可，无需密码/验证码）
+
+授权链接（有效期约 5 分钟）：
+  https://qoder.com.cn/device/selectAccounts?challenge=...&challenge_method=S256&machine_id=...
+
+已请求系统用默认浏览器打开（方式：rundll32）；若没看到页面，请手动打开上面的链接。
+```
+
+浏览器不会自动打开、或你不想让它自动打开时：
+
+```bash
+npm run qoder:login -- --region cn --no-open        # 只打印链接
+QODER_LOGIN_NO_BROWSER=1 npm run qoder:login        # 环境变量方式，效果相同
+```
+
+> Windows 上用 `rundll32 url.dll,FileProtocolHandler` 唤起默认浏览器；
+> 早期版本用 `explorer.exe <url>`，会把带 `&` 的链接当成文件夹路径，结果是弹出文件管理器。
+> 现在 explorer 只作为最后兜底，并且**链接始终会打印出来**，不会出现"既没开浏览器又没有链接"的情况。
+
+### 6.2 添加多个账号
+
+三种方式可混用，程序按 `region + uid（或令牌指纹）` 去重：
+
+```bash
+# 方式一：再跑一次登录，换另一个账号确认（推荐）
+npm run qoder:login -- --region cn --note 小号
+
+# 方式二：手工写入已有令牌
+npm run qoder:accounts -- add --region cn --access dt-xxxx --refresh drt-xxxx --note 主号
+
+# 方式三：环境变量（兼容 Qoder-Daily 写法，多条换行或 & 分隔）
+export QODER_TOKENS="主号|dt-xxx|drt-xxx"
+export QODER_GLOBAL_TOKENS="intl|dt-yyy|drt-yyy|<uid 可选>"
+```
+
+查看与删除：
+
+```bash
+npm run qoder:accounts                 # 列出账号（令牌脱敏）
+npm run qoder:accounts -- --json
+npm run qoder:accounts -- remove --account 小号
+```
+
+> 国内版与国际版的令牌、设备身份、接口域名**完全隔离**：`QODER_TOKENS` 只进国内版，
+> `QODER_GLOBAL_TOKENS` 只进国际版，账号主键带区域前缀，不会串区。
+
+### 6.3 手动签到
+
+```bash
+npm run qoder:status                 # 只读：账号、设备身份、今日状态、额度
+npm run qoder:dry-run                # 模拟：只查活动，不领取
+npm run qoder:run                    # 执行（所有账号）
+npm run qoder:run -- --region cn     # 只跑国内版
+npm run qoder:run -- --account 主号   # 只跑指定账号（支持 id / 备注 / 序号）
+npm run qoder:refresh                # 只续期令牌
+```
+
+参数：`--force`（忽略「今日已完成」记录再确认一次，服务端仍按天去重）、`--json`、`--offline`（不查额度）。
+
+### 6.4 定时执行
+
+```bash
+npm run qoder:daemon            # 常驻，默认每天 10:05 检查
+```
+
+Windows 开机自启可用计划任务（把 WorkBuddy 的脚本换成 `dist\qoder\cli.js daemon`，
+任务名换成 `QoderAutoCheckin` 即可，见第 5 节）。
+
+调度语义：
+- 默认 10:05（`checkTimes` 可配多个），启动时若已过点且未完成会补一次。
+- 当日全部账号已确认 → 该时间点不发任何请求。
+- 官方活动窗口 10:00 开启且可能延迟下发；**只有在 10 点这一小时内**才会按
+  `windowRetry`（默认最多 6 次 / 间隔 10 分钟）重试，窗口外不重试。
+
+### 6.5 查看日志
+
+```
+%APPDATA%\workbuddy-auto-checkin\run-log-YYYY-MM-DD.jsonl   结构化运行日志（JSONL）
+%APPDATA%\workbuddy-auto-checkin\qoder-state.json           账号/令牌/记录（0600，勿外传）
+```
+
+每条记录包含：日期、区域、账号（脱敏）、结果、活动 ID、面值、领取前后额度、是否验证到账、耗时。
+
+### 6.6 Qoder 配置
+
+可选文件 `qoder.config.json`（项目根或数据目录），模板见 `qoder.config.example.json`：
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `checkTimes` | `["10:05"]` | 每日检查时间（北京时间），可写多个 |
+| `regions` | `["cn","global"]` | 参与的区域 |
+| `windowRetry` | `{enabled,max:6,gapMs:600000}` | 10 点窗口内的有限重试 |
+| `retry` | `{maxAttempts:3,...}` | 请求级退避重试（仅瞬时错误） |
+| `verifyDelayMs` | `2000` | 领取后等待多久回读额度 |
+| `clientExe` | `{}` | 客户端路径，用于读取版本与定位 UMID 组件 |
+| `umidPath` | `{}` | 显式指定 UMID 组件路径 |
+| `allowUmidDownload` | `false` | 保留项：本实现**不**自动下载组件 |
+
+环境变量见 [.env.example](.env.example)：`QODER_TOKENS`、`QODER_GLOBAL_TOKENS`、
+`QODERCN_RUNTIME_INFO`、`QODER_RUNTIME_INFO`、`QODER_CHECKIN_DATA_DIR` 等。
+
+### 6.7 Qoder 常见错误
+
+| 现象 | 原因 | 处理 |
+|---|---|---|
+| `未找到 Qoder CN 的官方 UMID 组件（runtime-info）` | 没装对应客户端，或装在非默认目录 | 装客户端；或用 `QODERCN_RUNTIME_INFO` 指向 `resources/umid/runtime-info.exe` |
+| `未发现可领取的每日活动` | 未到 10:00 窗口 / 已领过 / 缺设备身份 | 看诊断里的活动行；确认设备身份可用 |
+| `领取被阻塞：同一设备身份下的其他账号已领取` | 同机多账号共用一个设备身份 | 上游限制，只能换设备或换天 |
+| `额度已耗尽（112 / pricingUrl）` | 账号额度用完 | 冷却 30 分钟，**不是**登录问题，不会触发续期 |
+| `登录状态失效` + `刷新令牌已失效或与地区不符` | 令牌失效或区域选错 | 重新 `qoder:login`；确认 `--region` 与账号地区一致 |
+| `授权超时或未完成` | 浏览器里没确认 | 重跑登录，打开打印出的链接 |
+
+---
+
+## 7. 安全设计
 
 | 约束 | 实现方式 |
 |---|---|
@@ -261,14 +470,19 @@ Register-ScheduledTask -TaskName "WorkBuddyAutoCheckin" -Action $action -Trigger
 
 ---
 
-## 7. 测试
+## 8. 测试
 
 ```bash
-npm test          # 编译 + 运行 68 个用例
+npm test          # 编译 + 运行全部 180 个用例（WorkBuddy 68 + Qoder 91 + 统一层 21）
 npm run typecheck # 只做类型检查
+
+# 只跑其中一层
+node --test "dist/test/qoder-*.test.js"
+node --test "dist/test/checkin-*.test.js"
+node --test "dist/test/unified-*.test.js"
 ```
 
-覆盖场景与需求清单的对应关系：
+### 8.1 WorkBuddy：覆盖场景与需求清单对应关系
 
 | # | 场景 | 测试用例 |
 |---|---|---|
@@ -283,11 +497,47 @@ npm run typecheck # 只做类型检查
 | 9 | 领取成功验证 | `code=0 但积分差额为 0`、`HTTP 200 但没有业务 code`、`HTML/空响应` |
 | 10 | 客户端关闭/重启 | `runOnce：客户端未运行时仍完成签到`、`配置为 launch 时会拉起`、CDP 重连用例 |
 
-测试全部使用可编程 `fetch`，**不接触真实账号**，也不会发出任何真实领取请求。
+### 8.2 Qoder：覆盖场景
+
+| 场景 | 测试用例 |
+|---|---|
+| Token 获取（国内版 / 国际版） | `授权链接与轮询地址按区域生成`、`轮询：200 带 token 即成功` |
+| 授权失败 / 超时 | `轮询：业务码非 0 报错`、`登录超时返回可读错误` |
+| Token 自动刷新 | `续期：普通 refresh token…`、`jrt- 前缀走 jobToken`、`401 给出重新登录` |
+| 设备身份生成 | `真实 UMID 组件可生成本机设备身份（国内版 / 国际版）`、`两个区域的覆盖变量互不串用` |
+| 组件缺失 | `找不到组件时返回尝试过的路径清单`、`组件调用失败时给出可读错误` |
+| Campaign 查询 | `活动行归一化`、`国内版空表 → 最小头复取`、`国际版不做复取` |
+| 可领取 / 已领取判断 | `挑选可领取的每日活动`、`只有已领取行时 target 为空` |
+| Credits 领取 | `领取请求：POST 到 …/claim`、`领取判定矩阵` |
+| 已领取幂等 | `领取返回 409 ALREADY_CLAIMED → already`、`--force` + `replayed` |
+| 额度 / 鉴权分流 | `额度类 403 不算登录失效`、`额度类 403 不触发续期` |
+| 网络异常重试 | `网络异常：重试后返回失败，不伪造结果` |
+| 多账号独立执行 | `多账号：一个失败不影响另一个` |
+| 重复签到保护 | `重复运行：同一天只会真正领取一次`、`并发同一账号` |
+| 定时任务 | `runForever：到点执行一次`、`启动补偿`、`已完成则不请求` |
+| 区域隔离 | `区域隔离：国内版只请求 .cn，国际版只请求 .sh` |
+
+### 8.3 统一入口：覆盖场景
+
+| 场景 | 测试用例 |
+|---|---|
+| 顺序执行三个平台 | `按顺序执行三个平台并汇总` |
+| 单平台异常隔离 | `单平台抛错不影响其它平台` |
+| 单平台超时 | `超时：该平台记为 error，后续平台继续执行` |
+| 今日已完成跳过 | `今日已完成 → 跳过且不调用平台` |
+| 强制/模拟覆盖跳过 | `--force / --dry-run 时即使今日已完成也要执行` |
+| 平台筛选 | `--platform 只跑指定平台`、`parsePlatformSelector：别名与非法值` |
+| 汇总与退出码 | `汇总把各平台失败账号数相加`、`退出码：全部完成 0 / 部分 1 / 失败或异常 2` |
+| 调度 | `allDone 只统计有账号的平台`、`shouldCatchUp`、`runForever 启动补偿` |
+| 区域归属 | `Qoder 适配器国内版只看 cn 账号`、`某区域无账号时 hasAccounts=false` |
+| 单实例互斥 | `pid 文件：写入 / 存活探测 / 清理 / 陈旧 pid` |
+
+测试全部使用可编程 `fetch` 与假适配器，**不接触真实账号**，也不会发出任何真实领取请求。
+唯一的真实调用是设备身份的组件执行（仅在装了对应客户端时运行，且是只读的本地进程）。
 
 ---
 
-## 8. 已实现 / 未实现
+## 9. 已实现 / 未实现
 
 ### 已实现
 
@@ -305,14 +555,40 @@ npm run typecheck # 只做类型检查
 - [x] JSON 状态存储（原子写 + 0600 + 跨进程锁 + 90 天保留）
 - [x] 脱敏 JSONL 运行日志
 - [x] 5 个 CLI 命令 + JSON 输出
-- [x] 68 个自动化测试
+- [x] 68 个 WorkBuddy 自动化测试
+
+Qoder（新增）：
+
+- [x] 设备码授权登录（PKCE S256），浏览器确认一次即可，免每日重登
+- [x] 令牌自动续期（deviceToken / jobToken 两条路径），轮换后立即落盘
+- [x] 官方 UMID 组件调用的设备身份，国内版 env=0 / 国际版 env=3，严格分区域
+- [x] 活动列表查询（含国内版空表的最小头复取）
+- [x] 每日活动识别 + Pro 升级包排除
+- [x] 领取与结果判定（claimed / already / blocked / error 四态）
+- [x] 额度回读验证到账（`/api/v2/quota/usage`）
+- [x] 额度类 403（112/110）与鉴权失效分流，前者不触发续期
+- [x] 三源账号（登录 / 手工导入 / 环境变量）+ 区域隔离去重
+- [x] 10 点窗口内有限重试，窗口外不重试
+- [x] 每日调度 + 启动补偿 + `--force` + 幂等（进程内 / 本地记录 / 服务端 replayed）
+- [x] 8 个 Qoder CLI 命令 + JSON 输出 + 脱敏日志
+- [x] 91 个 Qoder 自动化测试
+
+统一入口（新增）：
+
+- [x] 一条命令 `npm run signin` 依次执行三个平台
+- [x] `signin:status` / `signin:dry-run` / `signin:daemon` 三个配套入口
+- [x] 平台适配器契约：新增平台只需实现 4 个成员，不改编排层
+- [x] 单平台超时（默认 20 分钟）与异常隔离，一个平台挂了不影响其它
+- [x] 今日已完成整平台跳过（零网络请求）
+- [x] `--platform` 任意组合筛选、`--json` 机器可读、退出码区分 0/1/2/3
+- [x] 双向 pid 互斥：统一调度与平台 daemon 不会同时运行
+- [x] 21 个统一层自动化测试
 
 ### 未实现 / 待验证
 
-- [ ] **签到成功（`code=0`）时的响应 `data` 结构** —— 待验证。
-      本机账号当天已签到，只能观测到 `10001` 分支；参考实现同样不解析成功响应的 `data`。
-      因此本实现只用 `code===0` 判定成功，不展示"本次获得多少积分"。
-      下次在未签到的日子首次运行后，日志里会留下 `data` 字段名，可据此再扩展。
+- [x] **签到成功（`code=0`）的响应结构** —— 已实测（2026-11-03 00:00 北京时间）：
+      `HTTP 200 {"code":0,"msg":"OK"}`，积分 8703.09 → 8803.09（+100），`verification=credits-delta`。
+      响应体**不含**奖励明细，奖励只能靠领取前后积分差额确认；本实现已按此实现双重判定。
 - [ ] **`daily-checkin` 的独立"状态查询"接口** —— 参考实现与官方客户端都没有。
       本实现据实采用"本地记录 + 幂等领取返回值"判定当日状态，**没有编造任何 GET 接口**。
 - [ ] **企业账号签到** —— 未验证。参考实现的企业分支只覆盖积分查询，签到走同一接口；
@@ -324,9 +600,20 @@ npm run typecheck # 只做类型检查
 - [ ] 账号自动切换 —— 不实现。切换会改变官方客户端的登录态，风险高于收益；
       多账号通过各自的 `.info` 实现，不触碰当前登录状态。
 
+Qoder 相关：
+
+- [ ] **真实账号的完整领取链路** —— 待验证。本机已确认两区域 UMID 组件可用、授权端点可达，
+      但没有 Qoder 令牌，未发起带凭据的真实请求。执行 `npm run qoder:login` 后可自行验证。
+- [ ] **国际版实机签到** —— 组件与端点已验证，账号登录后的链路未跑。
+- [ ] **Pro 升级包领取** —— 不实现。参考实现会额外探测并领取一次性 Pro 包，与"每日积分"无关，
+      且会引入额外请求。需要时可参照 `docs/02-qoder.md` 自行扩展。
+- [ ] **UMID 组件自动下载** —— 不实现。参考实现会从 npm 提取并校验 sha512；
+      本实现只使用本机客户端自带组件，避免额外联网与写文件（配置项 `allowUmidDownload` 为保留位）。
+- [ ] 推送通知（PushPlus / Bark / 企微 / 钉钉）—— 不实现，本项目只做本地日志。
+
 ---
 
-## 9. 常见问题
+## 10. WorkBuddy 常见问题
 
 **`未找到 WorkBuddy 可执行文件，无法解密凭据`**
 客户端装在非默认目录。用 `WORKBUDDY_EXE` 或 `config.workBuddyExe` 指定 `WorkBuddy.exe` 的完整路径。
@@ -356,7 +643,7 @@ CDP 只用于身份核对与页面就绪检查。需要时用如下命令重启�
 
 ---
 
-## 10. 免责声明
+## 11. 免责声明
 
 本模块仅在本机复用你**自己已登录的账号权限**执行官方客户端本身提供的签到功能，
 不修改客户端、不绕过任何验证、不上传任何数据。

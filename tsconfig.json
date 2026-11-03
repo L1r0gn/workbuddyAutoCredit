@@ -17,6 +17,6 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["checkin/**/*.ts", "test/**/*.ts"],
+  "include": ["checkin/**/*.ts", "qoder/**/*.ts", "unified/**/*.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist"]
 }
